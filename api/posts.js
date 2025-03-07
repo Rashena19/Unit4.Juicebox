@@ -38,7 +38,7 @@ postsRouter.get('/', async (req, res, next) => {
 });
 
 postsRouter.post('/', requireUser, async (req, res, next) => {
-  const { title, content = "" } = req.body;
+  const { title, content = "", tags = [] } = req.body;
 
   const postData = {};
 
@@ -48,6 +48,19 @@ postsRouter.post('/', requireUser, async (req, res, next) => {
     postData.content = content;
 
     const post = await createPost(postData);
+
+    if (post) {
+      if (tags.length > 0) {
+        const tagPromises = tags.map(async (tag) => {
+          await client.query(`
+            INSERT INTO POST_TAGS (post_id, tag)
+            VALUE ($1, $2)
+            ON CONFLICT DO NOTHING;
+            `, [post.id, tag]);
+        });
+        await Promise.all(tagPromises);
+      }
+    }
 
     if (post) {
       res.send(post);
@@ -98,7 +111,26 @@ postsRouter.patch('/:postId', requireUser, async (req, res, next) => {
 });
 
 postsRouter.delete('/:postId', requireUser, async (req, res, next) => {
-  res.send({ message: 'under construction' });
+  try {
+    const { postId } = req.params;
+    const userId = req.user.id;
+
+    const { rows: [post] } = await client.query(
+      `SELECT * FROM post WHERE id = $1 AND author_id = $2`
+      [postId, userId]
+    );
+
+    if (!post) {
+      return res.status(403).json({ message: "post not found" });
+    }
+
+    await client.query(`DELETE FROM post_tags WHERE post_id = $1`, [postId]);
+    await client.query(`DELETE FROM posts WHERE id = $1`, [postId]);
+ 
+  res.json({ message: 'under construction' });
+} catch (error) {
+  next(error);
+}
 });
 
 module.exports = postsRouter;
