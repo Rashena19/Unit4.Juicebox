@@ -54,7 +54,7 @@ postsRouter.post('/', requireUser, async (req, res, next) => {
         const tagPromises = tags.map(async (tag) => {
           await client.query(`
             INSERT INTO POST_TAGS (post_id, tag)
-            VALUE ($1, $2)
+            VALUE ($1, $2, $3, $4)
             ON CONFLICT DO NOTHING;
             `, [post.id, tag]);
         });
